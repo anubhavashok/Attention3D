@@ -9,7 +9,7 @@ class InceptionRGB(nn.Module):
         super(InceptionRGB, self).__init__()
         print('Model: RGB/INCEPTION/3D')
         config.USE_FLOW=False
-        model = torch.load('models/I3D_pretrained_fixed.net')
+        model = torch.load('models/I3D.net')
         self.RGBStream = model
         self.dropout = nn.Dropout(0.5)
 
