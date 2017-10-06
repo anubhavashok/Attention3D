@@ -118,7 +118,6 @@ class Inception3D(nn.Module):
         x = self.padding(x)
         x = self.avgpool(x)
         x = self.conv4(x)
-        outputs.append(x)
         # average the final output
         #x = x.mean(2)
         return outputs
