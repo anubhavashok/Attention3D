@@ -85,12 +85,22 @@ class InceptionUp3D(nn.Module):
         self.tpadding = nn.ReplicationPad3d((0, 0, 0, 0, 0, 1))
         self.spadding = nn.ReplicationPad3d((0, 1, 0, 1, 0, 0))
         self.apadding = nn.ReplicationPad3d((0, 1, 0, 1, 0, 1))
+        self.attnout1 = nn.Conv3d(1024, 1, (3, 3, 3), padding=(1, 1, 1))
+        self.attnout2 = nn.Conv3d(832, 1, (3, 3, 3), padding=(1, 1, 1))
+        self.attnout3 = nn.Conv3d(512, 1, (3, 3, 3), padding=(1, 1, 1))
+        self.attnout4 = nn.Conv3d(256, 1, (3, 3, 3), padding=(1, 1, 1))
+        self.attnout5 = nn.Conv3d(64, 1, (3, 3, 3), padding=(1, 1, 1))
     
     def forward(self, enc_outs):
+        attn_outs = []
         x = enc_outs[0]
+        print('Output attention map here')
+        attn_outs.append(self.attnout1(x))
         outputs = []
         x = self.inc10up(x)
         print(x.size(), enc_outs[1].size())
+        print('Output attention map here')
+        attn_outs.append(self.attnout2(x))
         x = torch.cat([x, enc_outs[1]], dim=1)
         outputs.append(x)
         x = self.upsample4(x)
@@ -113,6 +123,8 @@ class InceptionUp3D(nn.Module):
         outputs.append(x)
         x = self.inc5up(x)
         print(x.size(), enc_outs[6].size())
+        attn_outs.append(self.attnout3(x))
+        print('Output attention map here')
         x = torch.cat([x, enc_outs[6]], dim=1)
         outputs.append(x)
         x = self.upsample3(x)
@@ -123,6 +135,8 @@ class InceptionUp3D(nn.Module):
         outputs.append(x)
         x = self.inc3up(x)
         print(x.size(), enc_outs[8].size())
+        attn_outs.append(self.attnout4(x))
+        print('Output attention map here')
         x = torch.cat([x, enc_outs[8]], dim=1)
         outputs.append(x)
         x = self.upsample2(x)
@@ -134,6 +148,8 @@ class InceptionUp3D(nn.Module):
         x = self.inc1up(x)
         x = self.aapadding(x)
         print(x.size(), enc_outs[10].size())
+        attn_outs.append(self.attnout5(x))
+        print('Output attention map here')
         x = torch.cat([x, enc_outs[10]], dim=1)
         outputs.append(x)
         x = self.upsample1(x)
@@ -145,7 +161,7 @@ class InceptionUp3D(nn.Module):
         x = self.conv1up(x)
         outputs.append(x)
         print(x.size())
-        return outputs 
+        return outputs, attn_outs 
 
 
 #from torch.autograd import Variable

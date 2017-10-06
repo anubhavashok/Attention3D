@@ -21,7 +21,7 @@ class InceptionUNET(nn.Module):
         enc_outs = self.encoder(rgb)
         enc_outs = [self.sigmoid(v) for v in enc_outs]
         # Pass all enc_outs here in order to concatenate features
-        dec_outs = self.decoder(list(reversed(enc_outs)))
-        dec_outs = [self.sigmoid(v) for v in dec_outs]
-        return enc_outs, dec_outs
+        dec_outs, attn_outs = self.decoder(list(reversed(enc_outs)))
+        attn_outs = [self.sigmoid(v) for v in attn_outs]
+        return enc_outs, dec_outs, attn_outs
 
