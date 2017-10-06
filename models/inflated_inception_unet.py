@@ -15,9 +15,12 @@ class InceptionUNET(nn.Module):
         self.encoder.padding = nn.Dropout(0)
         self.decoder = InceptionUp3D()
         self.dropout = nn.Dropout(0.5)
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, rgb, flow):
         enc_outs = self.encoder(rgb)
-        dec_outs = self.decoder(enc_outs)
+        enc_outs = [self.sigmoid(v) for v in enc_outs]
+        dec_outs = self.decoder(enc_outs[-1])
+        dec_outs = [self.sigmoid(v) for v in dec_outs]
         return enc_outs, dec_outs
 
