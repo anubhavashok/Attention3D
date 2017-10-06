@@ -29,14 +29,13 @@ if config.LOG:
     os.system('')
     cc = CrayonClient(hostname="server_machine_address")
 
-from models.inflated_inception_rgb import InceptionRGB 
-net = InceptionRGB() 
+from models.inflated_inception_unet import InceptionUNET 
+net = InceptionUNET()
 
 from config import *
 from utils import *
 
 actionClassifier = getActionClassifier() 
-transformer = getTransformer() 
 
 resume_epoch = 0
 if args.resume:
@@ -48,11 +47,6 @@ if args.resume:
 
 if USE_GPU:
     net = net.cuda()
-    #net = nn.DataParallel(net, device_ids=[0, 1])
-    #actionClassifier = actionClassifier.cuda()
-    #actionClassifier = nn.DataParallel(actionClassifier, device_ids=[0, 1])
-    transformer = transformer.cuda()
-    #transformer = nn.DataParallel(transformer, device_ids=[0, 1])
 
 parametersList = [{'params': transformer.parameters()},
                   {'params': net.parameters()}]
@@ -68,7 +62,6 @@ kwargs = {'num_workers': 1, 'pin_memory': True}
 
 from dataset_inception import InceptionDataset 
 cl = InceptionDataset(DATASET_PATH, split="train")
-predictionLossFunction = getPredictionLossFn(cl, net)
 recognitionLossFunction = getRecognitionLossFn()
 
 batch_size = 6
@@ -96,40 +89,17 @@ def train():
         print('Training for epoch %d' % (epoch))
         for batch_idx, (data, target) in enumerate(train_loader):
             (rgb, flow) = data
-            #rgb = rgb.squeeze(0)
-            #flow = flow.squeeze(0)
             target = target.squeeze()
-            #target = target[0].squeeze()
             if rgb.size(0) <= 1:
                 continue
-            if LAMBDA > 0:
-                toggleOptimization(optimizer, batch_idx, toggleFreq=16)
-                nextRGB = rgb[1:, :, :]
-                nextRGB = Variable(nextRGB, requires_grad=False).cuda()
-                nextFlow = flow[1:, :, :]
-                nextFlow = Variable(nextFlow, requires_grad=False).cuda()
             rgb = rgb.permute(0, 2, 1, 3, 4)
             rgb = Variable(rgb).cuda()
             flow = flow.permute(0, 2, 1, 3, 4)
             flow = Variable(flow).cuda()
             target = Variable(target.long(), requires_grad=False).cuda().detach()
             actionFeature = net(rgb, flow)
-            #actionFeature = actionClassifier(curFeature)
             recognitionLoss = recognitionLossFunction(actionFeature, target)
-            jointLoss = recognitionLoss
-            if LAMBDA > 0:
-                predFeature = transformer(curFeature)
-                #af = Variable(torch.from_numpy(one_hot((target.size(0), NUM_ACTIONS), target.data)).float()).detach().cuda()
-                #predFeature = transformer(torch.cat([af, curFeature], 1))
-                #predFeature = transformer(torch.cat[softmax(actionFeature), curFeature], 1))
-                #print(np.argsort(actionFeature.data.cpu().numpy(), axis=1)[:, -5:])
-                #print(np.argsort(target.data.cpu().numpy(), axis=1)[:, -5:])
-                nextFeature = net(nextRGB, nextFlow).detach()
-                predictionLoss = predictionLossFunction(predFeature, nextFeature)
-                #actionFeature[(target == 157).data.cuda().repeat(1, 158)] = 0
-                jointLoss = recognitionLoss + LAMBDA * predictionLoss
-                meter_pred.add(predictionLoss.data.cpu().numpy()[0])
-            jointLoss.backward()
+            recognitionLoss.backward()
             meter_rec.add(recognitionLoss.data.cpu().numpy()[0])
             meter_joint.add(jointLoss.data.cpu().numpy()[0])
             _, action = torch.max(actionFeature, 1)
@@ -142,7 +112,6 @@ def train():
             # NOTE: Changed accumGrad = 1 due to batch training
             optimizer.step()
             optimizer.zero_grad()
-            #print(batch_idx, float(jointLoss.data.cpu().numpy()[0]))
             if INTERMEDIATE_TEST and (batch_idx+1) % INTERMEDIATE_TEST == 0:
                 print('Intermediate testing: ', test(intermediate=True))
         print('Time elapsed %f' % (time() - start))
@@ -154,8 +123,6 @@ def train():
             print('acc: ', acc)
 
 def test(intermediate=False):
-    #mtr = meter.ConfusionMeter(k=NUM_ACTIONS)
-    #mapmtr = meter.mAPMeter()
     scores = {}
     target_scores = {}
     outputs = []
@@ -176,9 +143,6 @@ def test(intermediate=False):
         if intermediate and batch_idx == 1000:
             break
         (curRGB, curFlow) = data
-        #curRGB = curRGB.squeeze(0)
-        #curFlow = curFlow.squeeze(0)
-        #target = target[0]
         curRGB = curRGB.permute(0, 2, 1, 3, 4)
         curRGB = Variable(curRGB, volatile=True).cuda()
         curFlow = curFlow.permute(0, 2, 1, 3, 4)
@@ -192,25 +156,9 @@ def test(intermediate=False):
         vids = val_loader.dataset.snippets[prev_idx:prev_idx+batch_n]
         prev_idx += batch_n
         vids = [vid[0] for vid in vids]
-        #vid = val_loader.dataset.snippets[batch_idx][0]
-        # aggregate batches into map[vid]
-        #actionFeature = actionClassifier(curFeature).detach()
-        #actionFeature.data = unmapClasses(actionFeature.data)
-        #vid = val_loader.dataset.video_names[batch_idx]
-        #writeTestScore(f, vid, actionFeature)
-        #writeLocScore(floc, vid, actionFeature)
-        #mtr.add(actionFeature.data, target.data)
-        #mapmtr.add(actionFeature.data, target.data.cpu().numpy())
-        #mapmtr.add(actionFeature.data, target.data, target.data)
-        #t5a = top5acc(actionFeature, target)
-        #_, target_m = torch.max(target, 1)
         action, _ = torch.max(actionFeature, 1)
         action = action.squeeze()
         output = actionFeature.data.cpu().numpy()
-        # Remove softmax for map computation
-        #output = np.exp(output)
-        #output = np.divide(output, output.sum())
-        #output = np.divide(output, np.expand_dims(output.sum(1), axis=1))
         target, _ = target.max(1)
         target = target.squeeze()
         for ii in range(len(vids)):
@@ -228,11 +176,6 @@ def test(intermediate=False):
         targets.append(target.data.cpu().numpy())
         correct = target.eq(action.type_as(target)).sum().data.cpu().numpy()
         corr += (100. * correct) / curRGB.size(0)
-    #np.savetxt('cmatrix.txt', mtr.value(), fmt="%.2e")
-    #print(mapmtr.value())
-    #print(mtr.value())
-    #plot_confusion_matrix(mtr.value(), [])
-    #print(corr/(batch_idx))
     outputs = []
     targets = []
     for vid in scores:
@@ -246,7 +189,6 @@ def test(intermediate=False):
     ap = charades_ap(outputs, targets)
     mean_ap = np.mean(ap)
     print('mAP', mean_ap)
-    #print('Top5: ', 100*t5cum/(batch_idx))
     f.close()
     floc.close()
     net.train()
