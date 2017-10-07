@@ -42,14 +42,12 @@ if args.resume:
     model = torch.load(args.resume)
     net = model['net']
     actionClassifier = model['classifier']
-    transformer = model['transformer']
     resume_epoch = model['epoch']
 
 if USE_GPU:
     net = net.cuda()
 
-parametersList = [{'params': transformer.parameters()},
-                  {'params': net.parameters()}]
+parametersList = [{'params': net.parameters()}]
 optimizer = getOptimizer(parametersList) 
 
 if CLIP_GRAD:
@@ -64,7 +62,7 @@ from dataset_inception import InceptionDataset
 cl = InceptionDataset(DATASET_PATH, split="train")
 recognitionLossFunction = getRecognitionLossFn()
 
-batch_size = 6
+batch_size = 1 
 
 print(len(cl))
 def train():
@@ -72,8 +70,6 @@ def train():
     global net
     global transformer
     net.train()
-    actionClassifier.train()
-    transformer.train()
     #sampler = torch.utils.data.sampler.WeightedRandomSampler(classbalanceweights, len(cl))
     train_loader = torch.utils.data.DataLoader(cl, shuffle=True, batch_size=batch_size, **kwargs)
     print(len(train_loader))
@@ -104,7 +100,7 @@ def train():
             meter_joint.add(jointLoss.data.cpu().numpy()[0])
             _, action = torch.max(actionFeature, 1)
             # NOTE: Changed print every batch
-            if batch_idx % 50 == 0:
+            if batch_idx % 1 == 0:
                 print('%.2f%% [%d/%d] Recognition loss: %f, Prediction loss: %f, Joint loss: %f' % ((100. * batch_idx)/len(train_loader), batch_idx, len(train_loader), meter_rec.value()[0], meter_pred.value()[0], meter_joint.value()[0]))
                 meter_rec.reset()
                 meter_pred.reset()
