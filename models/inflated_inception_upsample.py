@@ -198,7 +198,7 @@ class InceptionUp3D(nn.Module):
         attn_outs.append(self.attnout5(x))
         print('Output attention map here')
         x = self.refine10(x, enc_outs[10])
-        x = torch.cat([x, enc_outs[10]], dim=1)
+        #x = torch.cat([x, enc_outs[10]], dim=1)
         outputs.append(x)
         x = self.upsample1(x)
         x = self.conv2up(x)
