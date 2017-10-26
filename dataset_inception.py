@@ -175,7 +175,7 @@ class InceptionDataset(data.Dataset):
         h = w = 224
         rgb_tensor = self.load_rgb(files) if USE_RGB else torch.Tensor(seq_len, 3, 1, 1)
         flow_tensor = self.load_flow(files) if USE_FLOW else torch.Tensor(seq_len, 2*NUM_FLOW, 1, 1)
-        if self.split == 'val':
+        if self.split == 'val' or TRAIN_MODE == 'MULTI':
             vid = action
             target = self.load_multi_targets(vid, files)
         else:

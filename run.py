@@ -29,8 +29,8 @@ if config.LOG:
     os.system('')
     cc = CrayonClient(hostname="server_machine_address")
 
-from models.inflated_inception_unet import InceptionUNET 
-net = InceptionUNET()
+from models.inflated_inception_attention import InceptionAttention
+net = InceptionAttention()
 
 from config import *
 from utils import *
@@ -46,6 +46,7 @@ if args.resume:
 
 if USE_GPU:
     net = net.cuda()
+    torch.nn.DataParallel(net, device_ids=[0])
 
 parametersList = [{'params': net.parameters()}]
 optimizer = getOptimizer(parametersList) 
@@ -62,7 +63,7 @@ from dataset_inception import InceptionDataset
 cl = InceptionDataset(DATASET_PATH, split="train")
 recognitionLossFunction = getRecognitionLossFn()
 
-batch_size = 1 
+batch_size = 2 
 
 print(len(cl))
 def train():
@@ -86,6 +87,8 @@ def train():
         for batch_idx, (data, target) in enumerate(train_loader):
             (rgb, flow) = data
             target = target.squeeze()
+            if TRAIN_MODE == 'MULTI':
+                target, _ = target.max(1)
             if rgb.size(0) <= 1:
                 continue
             rgb = rgb.permute(0, 2, 1, 3, 4)
@@ -97,10 +100,10 @@ def train():
             recognitionLoss = recognitionLossFunction(actionFeature, target)
             recognitionLoss.backward()
             meter_rec.add(recognitionLoss.data.cpu().numpy()[0])
-            meter_joint.add(jointLoss.data.cpu().numpy()[0])
+            #meter_joint.add(jointLoss.data.cpu().numpy()[0])
             _, action = torch.max(actionFeature, 1)
             # NOTE: Changed print every batch
-            if batch_idx % 1 == 0:
+            if batch_idx % 50 == 0:
                 print('%.2f%% [%d/%d] Recognition loss: %f, Prediction loss: %f, Joint loss: %f' % ((100. * batch_idx)/len(train_loader), batch_idx, len(train_loader), meter_rec.value()[0], meter_pred.value()[0], meter_joint.value()[0]))
                 meter_rec.reset()
                 meter_pred.reset()
