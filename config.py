@@ -1,4 +1,4 @@
-DATASET_PATH='../charades'
+DATASET_PATH='/scratch/anubhava'
 OUTPUT_NAME='testscores.txt'
 
 # Constants
@@ -28,7 +28,7 @@ LR_DECAY=3
 
 # Data options
 TEST_CROP_MODE='CenterCrop'
-TRAIN_MODE='SINGLE'
+TRAIN_MODE='MULTI'
 NUM_FLOW=10
 # Don't tamper with these variables, they are modified within models if needed 
 USE_RGB=True
