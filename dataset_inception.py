@@ -22,7 +22,8 @@ def load_img(filepath, transforms=None):
         img = self.transform(img)
     return img
 
-
+# Currently unused - Corner cropping technique described in Temporal Segment Networks
+# https://arxiv.org/pdf/1608.00859.pdf
 def corner_crop_random(img, sz=224):
     w, h = (img.size[0], img.size[1])
     idx = int(np.random.random()*5)
@@ -40,6 +41,7 @@ def corner_crop_random(img, sz=224):
 
 CornerCrop = transforms.Lambda(corner_crop_random)
 
+# Data augmentation for RGB during training
 trainImgTransforms = transforms.Compose([
     transforms.Scale(256),
     #CornerCrop,
@@ -49,12 +51,14 @@ trainImgTransforms = transforms.Compose([
     transforms.ToTensor()
 ])
 
+# Data augmentation for FLOW during training
 trainFlowTransforms = transforms.Compose([
     transforms.RandomSizedCrop(224),
     #transforms.RandomHorizontalFlip(),
     transforms.ToTensor()
 ])
 
+# Data augmentation during testing
 Crop = None
 if TEST_CROP_MODE == 'CenterCrop':
     Crop = transforms.CenterCrop(224)
@@ -69,6 +73,10 @@ valTransforms = transforms.Compose([
     transforms.ToTensor()
 ])
 
+# Utility function to convert sequences into blocks of batch_size
+# In this context, batch_size actually refers to the size of the sequence (seq_len, e.g. 64)
+# Replicates the sequence if it is shorter than batch size (As described in I3D)
+# https://arxiv.org/pdf/1705.07750.pdf
 def to_batch(sequence, batch_size):
     batches = []
     while len(sequence) >= batch_size:
@@ -81,6 +89,8 @@ def to_batch(sequence, batch_size):
         batches.append(sequence)
     return batches
 
+# Once batches have been generated, the frame numbers and video ids
+# are saved to disk (*.pkl files) to prevent regenerating each time 
 def save_snippets(snippets, path, split):
     file_path = os.path.join(path, 'snippets_%s.pkl'%split)
     pickle.dump(snippets, open(file_path, 'wb+'))
@@ -93,6 +103,8 @@ def load_snippets(path, split):
     else:
         return []
 
+# Post processing step to decrease frame rate 
+# If thin_frames is used, *.pkl files have to be removed and snippets regenerated
 def thin_frames(frameNums, N=4):
     thinned = []
     for i in range(len(frameNums)):
@@ -100,12 +112,13 @@ def thin_frames(frameNums, N=4):
             thinned.append(frameNums[i])
     return thinned
 
+# Main dataset loader
 class InceptionDataset(data.Dataset):
-    def __init__(self, base_dir, input_transform=None, target_transform=None, fps=24, split='train', batch_size=64):
+    def __init__(self, base_dir, input_transform=None, target_transform=None, fps=24, split='train', seq_len=32):
         super(InceptionDataset, self).__init__()
         self.testGAP = 25
         self.split = split
-        self.batch_size = batch_size
+        self.seq_len = seq_len 
         self.fps = fps
         self.base_dir = base_dir
         self.snippets = []
@@ -130,7 +143,7 @@ class InceptionDataset(data.Dataset):
         count = 0
         # Create batches of snippets
         self.snippets = load_snippets('./', self.split)
-        # TODO: experimental, might need to shuffle for batchnorm
+        # Shuffle order of snippets
         random.shuffle(self.snippets)
         if len(self.snippets) == 0:
             for vid in self.video_names:
@@ -142,7 +155,7 @@ class InceptionDataset(data.Dataset):
                     # Thin frameNums
                     frameNums = thin_frames(frameNums)
                     #frameNums = frameNums[:min(len(frameNums), self.batch_size*5)]
-                    batches = to_batch(frameNums, self.batch_size)
+                    batches = to_batch(frameNums, self.seq_len)
                     for batch in batches:
                         batch = list(zip([vid]*len(batch), batch))
                         self.snippets.append((vid, batch))
@@ -151,10 +164,10 @@ class InceptionDataset(data.Dataset):
                     filenames = glob(os.path.join(self.base_dir, 'Charades_v1_rgb', vid, '*'))
                     frameNums = range(1, len(filenames)+1)
                     frameNums = thin_frames(frameNums)
-                    # Select last 6 digits of filename 
+                    # Ensure that the frames are within the action extents 
                     sequence = list(filter(lambda x: x >= s and x <= e, frameNums))
-                    batches = to_batch(sequence, self.batch_size)
-                    # split into sequences of batch_size, drop if too small
+                    batches = to_batch(sequence, self.seq_len)
+                    # split into sequences of seq_len
                     for batch in batches:
                         batch = list(zip([vid]*len(batch), batch))
                         self.snippets.append((a, batch))
@@ -175,6 +188,7 @@ class InceptionDataset(data.Dataset):
         h = w = 224
         rgb_tensor = self.load_rgb(files) if USE_RGB else torch.Tensor(seq_len, 3, 1, 1)
         flow_tensor = self.load_flow(files) if USE_FLOW else torch.Tensor(seq_len, 2*NUM_FLOW, 1, 1)
+        # For validation and MULTI, we use sigmoid loss, so targets are batch_sizex157 instead of batch_sizex1
         if self.split == 'val' or TRAIN_MODE == 'MULTI':
             vid = action
             target = self.load_multi_targets(vid, files)
@@ -194,7 +208,7 @@ class InceptionDataset(data.Dataset):
             rgb_tensor[i] = rgb
         normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                     std=[0.229, 0.224, 0.225])
-        # Move this into [-1, 1]
+        # Normalize data in the format that works with pretrained I3D weights
         rgb_tensor = (rgb_tensor - 0.5) * 2
         return rgb_tensor#normalize(rgb_tensor)
     
