@@ -6,12 +6,13 @@ from copy import deepcopy
 from torch.autograd import Variable
 import torch.nn.functional as F
 from torchnet import meter
+import os
 
 import numpy as np
 from time import time
 import config
 
-torch.set_num_threads(4)
+#torch.set_num_threads(4)
 
 import argparse
 parser = argparse.ArgumentParser(description='Lets win charades')
@@ -37,6 +38,11 @@ from utils import *
 
 actionClassifier = getActionClassifier() 
 
+device_ids=[0, 1, 2, 3]
+def parallel(var, device_ids=[0, 1, 2, 3]):
+    return torch.nn.DataParallel(var, device_ids=device_ids)
+
+# Resume training from pretrained model
 resume_epoch = 0
 if args.resume:
     model = torch.load(args.resume)
@@ -46,9 +52,10 @@ if args.resume:
 
 if USE_GPU:
     net = net.cuda()
-    torch.nn.DataParallel(net, device_ids=[0])
+    net = torch.nn.DataParallel(net, device_ids=[0, 1, 2, 3])#parallel(net, device_ids=device_ids)#torch.nn.DataParallel(net, device_ids=[0, 1, 2, 3])
 
-parametersList = [{'params': net.parameters()}]
+params = filter(lambda p: p.requires_grad, net.parameters())
+parametersList = [{'params': params}]
 optimizer = getOptimizer(parametersList) 
 
 if CLIP_GRAD:
@@ -63,7 +70,7 @@ from dataset_inception import InceptionDataset
 cl = InceptionDataset(DATASET_PATH, split="train")
 recognitionLossFunction = getRecognitionLossFn()
 
-batch_size = 2 
+batch_size = 16 
 
 print(len(cl))
 def train():
@@ -93,10 +100,14 @@ def train():
                 continue
             rgb = rgb.permute(0, 2, 1, 3, 4)
             rgb = Variable(rgb).cuda()
+            #rgb = parallel(rgb, device_ids=device_ids)
             flow = flow.permute(0, 2, 1, 3, 4)
             flow = Variable(flow).cuda()
+            #flow = parallel(flow, device_ids=device_ids)
             target = Variable(target.long(), requires_grad=False).cuda().detach()
+            #target = parallel(target, device_ids=device_ids)
             actionFeature = net(rgb, flow)
+            actionFeature = actionFeature.resize(batch_size, 157)
             recognitionLoss = recognitionLossFunction(actionFeature, target)
             recognitionLoss.backward()
             meter_rec.add(recognitionLoss.data.cpu().numpy()[0])
@@ -132,6 +143,8 @@ def test(intermediate=False):
     actionClassifier.eval()
     corr = 0
     t5cum = 0
+    if not os.path.exists('./results'):
+        os.path.mkdir('./results')
     f = open('results/%s'%(OUTPUT_NAME), "w+")
     floc = open('results/loc_%s'%(OUTPUT_NAME), "w+")
     val_loader = torch.utils.data.DataLoader(InceptionDataset(DATASET_PATH, split="val"), shuffle=False, batch_size=batch_size, **kwargs)
@@ -144,9 +157,12 @@ def test(intermediate=False):
         (curRGB, curFlow) = data
         curRGB = curRGB.permute(0, 2, 1, 3, 4)
         curRGB = Variable(curRGB, volatile=True).cuda()
+        #curRGB = parallel(curRGB, device_ids=device_ids)
         curFlow = curFlow.permute(0, 2, 1, 3, 4)
         curFlow = Variable(curFlow, volatile=True).cuda()
+        #curFlow = parallel(curFlow, device_ids=device_ids)
         target = Variable(target, volatile=True).cuda()
+        #target = parallel(target, device_ids=device_ids)
         actionFeature = net(curRGB, curFlow).detach()
         if actionFeature.dim() <= 1:
             continue
