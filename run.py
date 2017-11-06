@@ -107,7 +107,7 @@ def train():
             target = Variable(target.long(), requires_grad=False).cuda().detach()
             #target = parallel(target, device_ids=device_ids)
             actionFeature = net(rgb, flow)
-            actionFeature = actionFeature.resize(batch_size, 157)
+            actionFeature = actionFeature.resize(actionFeature.size(0)/157, 157)
             recognitionLoss = recognitionLossFunction(actionFeature, target)
             recognitionLoss.backward()
             meter_rec.add(recognitionLoss.data.cpu().numpy()[0])
@@ -164,6 +164,7 @@ def test(intermediate=False):
         target = Variable(target, volatile=True).cuda()
         #target = parallel(target, device_ids=device_ids)
         actionFeature = net(curRGB, curFlow).detach()
+        actionFeature = actionFeature.resize(actionFeature.size(0)/157, 157)
         if actionFeature.dim() <= 1:
             continue
         batch_n = actionFeature.size(0)

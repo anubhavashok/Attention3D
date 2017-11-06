@@ -43,7 +43,7 @@ CornerCrop = transforms.Lambda(corner_crop_random)
 
 # Data augmentation for RGB during training
 trainImgTransforms = transforms.Compose([
-    transforms.Scale(256),
+    transforms.Resize(256),
     #CornerCrop,
     #transforms.RandomSizedCrop(224),
     transforms.CenterCrop(224),
@@ -68,8 +68,9 @@ else:
     Crop = transforms.RandomCrop(224)
 
 valTransforms = transforms.Compose([
-    transforms.Scale(256),
-    Crop,
+    transforms.Resize(256),
+    transforms.CenterCrop(224),
+    #Crop,
     transforms.ToTensor()
 ])
 
