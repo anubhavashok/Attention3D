@@ -12,7 +12,7 @@ class BasicConvUp3d(nn.Module):
     
     def forward(self, x):
         x = self.conv(x)
-        x = self.bn(x)
+        #x = self.bn(x)
         x = self.relu(x)
         return x
 
@@ -82,7 +82,7 @@ class InceptionUp(nn.Module):
 class InceptionUp3D(nn.Module):
     def __init__(self, num_classes=157):
         super(InceptionUp3D, self).__init__()
-        self.conv1up = BasicConvUp3d(64, 3, (7, 7, 7), (2, 2, 2))
+        self.conv1up = BasicConvUp3d(64, 3, (7, 7, 7), (2, 2, 2), padding=(3, 3,3))
         self.upsample1 = nn.Upsample(scale_factor=(1, 2, 2), mode='trilinear')
         self.conv2up = BasicConvUp3d(64, 64, (1, 1, 1))
         #self.conv3up = BasicConvUp3d(64, 64, (3, 3, 3))
@@ -143,7 +143,7 @@ class InceptionUp3D(nn.Module):
         #x = torch.cat([x, enc_outs[1]], dim=1)
         outputs.append(x)
         x = self.upsample4(x)
-        x = self.tpadding(x)
+        #x = self.tpadding(x)
         x = self.inc9up(x)
         #print(x.size(), enc_outs[2].size())
         x = self.refine2(x, enc_outs[2])
@@ -172,7 +172,7 @@ class InceptionUp3D(nn.Module):
         #x = torch.cat([x, enc_outs[6]], dim=1)
         outputs.append(x)
         x = self.upsample3(x)
-        x = self.apadding(x)
+        #x = self.apadding(x)
         x = self.inc4up(x)
         #print(x.size(), enc_outs[7].size())
         x = self.refine7(x, enc_outs[7])
@@ -186,14 +186,14 @@ class InceptionUp3D(nn.Module):
         #x = torch.cat([x, enc_outs[8]], dim=1)
         outputs.append(x)
         x = self.upsample2(x)
-        x = self.padding(x)
+        #x = self.padding(x)
         x = self.inc2up(x)
         #print(x.size(), enc_outs[9].size())
         x = self.refine9(x, enc_outs[9])
         #x = torch.cat([x, enc_outs[9]], dim=1)
         outputs.append(x)
         x = self.inc1up(x)
-        x = self.aapadding(x)
+        #x = self.aapadding(x)
         #print(x.size(), enc_outs[10].size())
         attn_outs.append(self.attnout5(x))
         #print('Output attention map here')
@@ -202,7 +202,7 @@ class InceptionUp3D(nn.Module):
         outputs.append(x)
         x = self.upsample1(x)
         x = self.conv2up(x)
-        x = self.spadding(x)
+        #x = self.spadding(x)
         #print(x.size(), enc_outs[11].size())
         x = self.refine11(x, enc_outs[11])
         #x = torch.cat([x, enc_outs[11]], dim=1)
