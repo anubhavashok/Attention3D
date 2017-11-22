@@ -7,7 +7,7 @@ from torch import nn
 from torch import optim
 from torch.autograd import Variable
 from torch.nn.modules.loss import _WeightedLoss
-from torch.nn import MSELoss, KLDivLoss, SmoothL1Loss, CrossEntropyLoss, MultiLabelSoftMarginLoss, BCELoss, CosineEmbeddingLoss, TripletMarginLoss 
+from torch.nn import MSELoss, KLDivLoss, SmoothL1Loss, CrossEntropyLoss, MultiLabelSoftMarginLoss, BCELoss, BCEWithLogitsLoss, CosineEmbeddingLoss, TripletMarginLoss 
 import torch.nn.functional as F
 from config import *
 
@@ -236,8 +236,8 @@ def getPredictionLossFn(cl=None, net=None):
 
 def getRecognitionLossFn():
     ceLoss = CrossEntropyLoss(weight=classbalanceweights.cuda())
-    #multiLoss = BCELoss(weight=classbalanceweights.cuda())
-    multiLoss = KLDivLoss()#(weight=classbalanceweights.cuda())
+    multiLoss = BCEWithLogitsLoss()#(weight=classbalanceweights.cuda())
+    #multiLoss = KLDivLoss()#(weight=classbalanceweights.cuda())
     log_softmax = nn.LogSoftmax()
     softmax = nn.Softmax()
     sigmoid = nn.Sigmoid()
@@ -251,8 +251,8 @@ def getRecognitionLossFn():
         def recognition_loss(actionFeature, target):
             #return multiLoss(sigmoid(actionFeature), target.float())
             #target = Variable(augmentLabels(target.data)).detach()
-            return multiLoss(log_softmax(actionFeature), target.float())
-            #return multiLoss(softmax(actionFeature/T), target.float())
+            #return multiLoss(log_softmax(actionFeature), target.float())
+            return multiLoss(actionFeature, target.float())
     return recognition_loss
 
 
@@ -340,14 +340,12 @@ def remove_backward_hooks(m):
     return m
 
 best_mean_ap = 0
-def saveModel(net, classifier, transformer, mean_ap, epoch):
+def saveModel(net, classifier, mean_ap, epoch):
     global best_mean_ap
     net = remove_backward_hooks(deepcopy(net).cpu())
-    transformer = remove_backward_hooks(deepcopy(transformer).cpu())
     classifier = remove_backward_hooks(deepcopy(classifier).cpu())
     package = {'net': net, 
                'classifier': classifier, 
-               'transformer': transformer,
                'mean_ap': mean_ap,
                'epoch': epoch}
     if mean_ap > best_mean_ap:
