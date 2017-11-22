@@ -6,7 +6,6 @@ from inflated_inception_upsample import *
 import config
 import pickle
 import os
-import shelve
 
 featuresPath = '/scratch/anubhava/charades_features'
 
@@ -26,23 +25,9 @@ class InceptionUNET(nn.Module):
         self.decoder = InceptionUp3D()
         self.dropout = nn.Dropout(0.5)
         self.sigmoid = nn.Sigmoid()
-        self.shelve = shelve.open(featuresPath)
 
     def forward(self, rgb, flow):
-        if self.freeze_encoder:
-            # If we already have the data for this, load it, if not save it
-            # Do this for each batch
-            for i in range(rgb.size(0)):
-                h = hash(tuple(rgb[i].data.cpu().numpy().flatten().tolist()))
-                #p = os.path.join(featuresPath, str(abs(h)))
-                if self.shelve.has_key(h):
-                    enc_outs = self.shelve[h]
-                else:
-                    enc_outs = self.encoder(rgb)
-                    self.shelve[h] = enc_outs
-        else:
-            enc_outs = self.encoder(rgb)
-        #enc_outs = self.encoder(rgb)
+        enc_outs = self.encoder(rgb)[:-1]
         enc_outs = [self.sigmoid(v) for v in enc_outs]
         # Pass all enc_outs here in order to concatenate features
         dec_outs, attn_outs = self.decoder(list(reversed(enc_outs)))
