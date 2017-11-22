@@ -225,6 +225,9 @@ class InceptionDataset(data.Dataset):
             for flowNum in range(frameNum-s, frameNum+e):
                 flowxFileName = os.path.join(self.base_dir, 'Charades_v1_flow', vid, '%s-%06dx.jpg' % (vid, frameNum))
                 flowyFileName = os.path.join(self.base_dir, 'Charades_v1_flow', vid, '%s-%06dy.jpg' % (vid, frameNum))
+                # There is 1 less flow file than rgb files, so this could happen
+                if not os.path.exists(flowxFileName):
+                    continue
                 flowx = load_img(flowxFileName)
                 flowy = load_img(flowyFileName)
                 flowx, _, _ = flowx.split()
